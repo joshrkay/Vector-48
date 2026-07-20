@@ -43,6 +43,15 @@ for detail instead of duplicating it here.
 > habits) rather than growing forever unchecked.
 > *Source: How I Plan, Build, and Run Loops with Claude Code (34:26–36:00)*
 
+- **Memory is not automatic — it must be explicitly wired in.** n8n's "AI
+  Agent" node has zero memory by default; asking it about an earlier message
+  in the same conversation fails until a memory component is attached
+  (default window: 5 messages). Worth treating as a checklist item for any
+  agent product: don't assume conversational continuity exists just because
+  the framework has an "agent" primitive — verify it, and size the window
+  deliberately.
+  *Source: N8N Full Course 6 Hours (142:34–144:20)*
+
 ## Task specification (highest leverage for reliability)
 
 - **Definition of done.** Most user disappointment with agents traces back to
@@ -92,6 +101,35 @@ for detail instead of duplicating it here.
   optionally seeded with a reference (an existing site/brand) it can fetch.
   Especially useful when the requester "won't know it until they see it."
   *Source: How I Plan, Build, and Run Loops with Claude Code (9:35–10:15, 15:50–16:00)*
+
+- **Schema-first structured output.** Prompt the model with the exact JSON
+  keys/shape you want back, rather than asking for free text and parsing
+  after the fact. Used consistently across a course's real, sold client
+  workflows — treat this as a default, not an optimization.
+  *Source: N8N Full Course 6 Hours (85:36–85:47, 131:10–131:53, 178:00–178:11)*
+
+- **Classify-then-generate in one call.** Have a single LLM call return both
+  a gate field (e.g. `relevant: true/false`) and the conditionally-generated
+  content in one JSON response, instead of a separate classification call
+  followed by a separate generation call. Cheaper and simpler than two
+  round-trips when the two steps are always paired anyway.
+  *Source: N8N Full Course 6 Hours (177:02–178:11)*
+
+- **Bounded task → deterministic control flow + single LLM call. Open-ended
+  task → full agent (memory + tools).** Observed as consistent practice
+  rather than a stated rule: the course's two *sold* client workflows
+  (single-purpose transformations) both use one-shot LLM calls wired through
+  plain if/filter/merge logic; the full agent node (memory, autonomous tool
+  selection) is reserved for genuinely open-ended, multi-turn tasks. Useful
+  as a default heuristic for not over-agentifying simple steps.
+  *Source: N8N Full Course 6 Hours (73:03–74:34 vs. 140:41–146:40)*
+
+- **Gate side effects behind classification, not behind every item.** Filter
+  *after* generation using an AI-returned boolean field, so anything with a
+  real-world side effect (sending an email, drafting a reply) only fires for
+  items the model actually flagged as relevant — keeps irreversible actions
+  behind a checkpoint instead of firing on every record in a batch.
+  *Source: N8N Full Course 6 Hours (183:52–184:28)*
 
 ## Multi-agent quality control
 
@@ -180,6 +218,52 @@ for detail instead of duplicating it here.
   limit), not a wall of examples.
   *Source: How I Plan, Build, and Run Loops with Claude Code (35:37–37:01)*
 
+- **Quick token-budget heuristic.** Rough rule of thumb: `characters / 4.7 /
+  0.75 ≈ tokens` (≈4.7 chars/word, ≈0.75 words/token in English). Not
+  precise enough to bill against, but cheap enough to sanity-check a
+  prompt/context chunk's cost before sending it, without calling a tokenizer.
+  *Source: N8N Full Course 6 Hours (200:00–203:01)*
+
+- **Strip boilerplate before it reaches the model.** Remove HTML tags,
+  markdown formatting, and other non-signal content from scraped/fetched
+  text before it hits an LLM call — cheaper input tokens and cleaner
+  downstream matching/search. A specific instance of "don't pay to process
+  waste."
+  *Source: N8N Full Course 6 Hours (221:01–222:29)*
+
+- **Pin/cache expensive outputs during iterative development.** Freeze an
+  LLM (or any upstream) call's sample output while building/testing
+  downstream steps, instead of re-triggering and re-paying for the real call
+  on every test run. Test on a small slice (1–3 records) before scaling to
+  the full batch, for the same reason — avoid burning tokens on iteration
+  that doesn't need live data.
+  *Source: N8N Full Course 6 Hours (33:52–34:24, 100:53–100:59, 179:56–180:22)*
+
+- **Rate-limit-aware sequential looping.** When hitting per-item API/rate
+  limits on bulk operations, loop one item at a time with a short wait
+  between iterations rather than firing all requests concurrently. A
+  recurring real-world failure mode, not an edge case — worth building in
+  by default for any bulk-processing pipeline, agent-driven or not.
+  *Source: N8N Full Course 6 Hours (161:53–163:09)*
+
+- **Self-hosting flips the cost model from per-execution to fixed-cost.** A
+  small fixed-cost server can absorb volume that would cost far more on a
+  metered cloud plan — directly relevant to margin planning for any agent
+  product with unpredictable or high-volume usage. Separately: data
+  residency/compliance requirements (healthcare, legal, financial) can force
+  self-hosting regardless of cost, making it a default rather than a
+  preference in regulated verticals.
+  *Source: N8N Full Course 6 Hours (305:07–305:34, 305:43–306:16)*
+
+- **Meter by execution, not by internal step.** Concrete numbers from one
+  platform comparison: a plan that bills per full workflow-run scaled ~40x
+  further per dollar (self-hosted) than a comparable plan billing per
+  internal operation/node, because a single run can contain many internal
+  steps. Worth remembering when pricing our own agent product's usage —
+  metering granularity changes the economics more than the sticker price
+  does.
+  *Source: N8N Full Course 6 Hours (347:56–353:52)*
+
 ## Orchestration architecture
 
 - **Router/orchestrator pattern.** One model plans, decomposes, delegates
@@ -199,6 +283,123 @@ for detail instead of duplicating it here.
   *Caveat noted in source: overlaps with anti-bot-detection evasion territory
   (browser fingerprinting) — needs its own legal/ethics review before
   productizing, not just a technical green light.*
+
+- **Multi-agent threshold heuristic: past ~6-7 tools on one agent, spawn a
+  sub-agent instead of stacking more tools.** A flat single-agent-with-many-
+  tools design is claimed to degrade in tool-selection accuracy past that
+  point; the fix is to have the agent call *another* agent that owns its own
+  smaller tool set and makes its own tool-selection decision — described as
+  "almost like a big search tree." One of the more concrete, actionable
+  numbers in any source so far for when to introduce hierarchy.
+  *Source: N8N Full Course 6 Hours (146:24–146:40)*
+
+- **Let the agent decide runtime tool-call values, not the workflow author.**
+  When a tool needs a dynamic value (e.g. a date range for a calendar
+  query), bind it to an "ask the model" expression rather than hardcoding it
+  — the agent fills in the value at call time based on context. The general
+  version: don't pre-compute what the agent is actually positioned to reason
+  about itself.
+  *Source: N8N Full Course 6 Hours (145:31–146:03)*
+
+- **Applied shape: unstructured content → structured record via one LLM
+  call.** Fetch raw content (e.g. scrape a webpage's text), then a single
+  LLM call with a JSON-schema prompt turns it into a structured record
+  (summary, key attributes, contact info, etc.). A reusable "ingest →
+  structure" shape worth having as a building block before reaching for
+  dedicated scraping/RAG tooling.
+  *Source: N8N Full Course 6 Hours (129:01–133:19)*
+
+- **Guard side-effecting nodes against accidental fan-out re-execution.**
+  When a downstream node has a real-world side effect (send email, write
+  record) and sits after a fan-out over multiple items, explicitly guard it
+  to run once per intended trigger, not once per upstream item — an easy
+  footgun once a pipeline has more than one branch.
+  *Source: N8N Full Course 6 Hours (165:59–166:14)*
+
+## Tool selection for agent-building infrastructure
+
+Patterns for evaluating/choosing the tools we build agent products *with* —
+distinct from patterns for how the agents themselves behave.
+
+- **Check whether a tool's business model is structurally opposed to using
+  it efficiently.** A no-code platform that meters per-operation has a built-
+  in incentive not to offer an easy code escape hatch, since code lets users
+  collapse many billable steps into one. Before adopting a metered tool,
+  check whether efficient usage is something the vendor is incentivized to
+  make hard.
+  *Source: N8N Full Course 6 Hours (330:36–330:57)*
+
+- **Check for native branch/loop/merge/error-handling primitives, not
+  simulated ones.** Orchestration tools vary widely in whether control flow
+  is a first-class primitive (native switch, native loop, native error
+  handling) vs. something you have to hand-simulate by chaining filters.
+  This matters a lot more for agent orchestration specifically than for
+  simple linear automations, since agent flows branch and retry constantly.
+  *Source: N8N Full Course 6 Hours (331:42–336:37)*
+
+- **A fast pin/cache-and-rerun debug loop is worth weighting heavily in tool
+  choice.** The ability to freeze sample data on a step and rerun only
+  downstream steps against it (vs. re-hitting live APIs on every test) was
+  called out as an order-of-magnitude difference in iteration speed between
+  two compared platforms — arguably more consequential than raw feature
+  count when picking a build tool.
+  *Source: N8N Full Course 6 Hours (335:26–336:37)*
+
+- **Tooling purpose-built around the agent primitive beats general-purpose
+  automation tooling, once you're actually building agents.** A platform
+  with a native agent construct (memory, tool-calling, agent-as-callable-
+  tool) beat a general iPaaS competitor for agent-building specifically, even
+  though the competitor had more integrations overall — capability that
+  matches the actual primitive you're building with matters more than raw
+  breadth.
+  *Source: N8N Full Course 6 Hours (340:03–342:36)*
+
+- **Text-representable, pasteable definitions + native in-canvas
+  documentation = maintainability.** Workflows/specs that export as
+  plain-text (JSON, markdown) and can be pasted/imported directly, with
+  documentation embedded next to the logic rather than hidden behind a
+  click, are what makes something handoff-able to a team later. Relevant to
+  how we structure our own agent configs/specs, not just to picking a
+  vendor.
+  *Source: N8N Full Course 6 Hours (342:44–346:54)*
+
+- **Simple tools win the early/non-technical segment of a market; power
+  tools pull ahead as the median builder's skill rises.** Drawn as an
+  explicit analogy to the Zapier→Make→n8n progression. Worth revisiting
+  periodically as a lens on how our own product's target user — and the
+  tooling they reach for — might shift over time.
+  *Source: N8N Full Course 6 Hours (353:55–354:32)*
+
+## Productizing & selling agent automations
+
+Business/product-delivery patterns, as distinct from technical-build
+patterns — from a course explicitly about building *and selling* automations
+to clients.
+
+- **Template-first delivery.** A large public template library can be a
+  legitimate fast path to shipping client/product work, not just a learning
+  aid — start from a close-enough template and customize, rather than
+  building every workflow from scratch.
+  *Source: N8N Full Course 6 Hours (05:01–05:54)*
+
+- **Humanize automated timing.** Insert a deliberate delay (e.g. ~2 minutes)
+  before sending an AI-drafted response, specifically so automated outreach
+  reads as human-paced rather than obviously instant/robotic. A small,
+  cheap lever for perceived quality.
+  *Source: N8N Full Course 6 Hours (52:19–52:51)*
+
+- **Perceived personalization is the sellable value, not automation
+  volume.** The pitch for a cold-outreach workflow wasn't "sends more
+  emails" — it was that paraphrasing a prospect's own stated interests back
+  to them made outreach *read* as individually researched. Worth remembering
+  when framing what an agent product's value prop actually is to a buyer.
+  *Source: N8N Full Course 6 Hours (100:41–100:57)*
+
+- **Strip platform attribution branding for client/business use.** Small but
+  repeated polish note: default "sent via [tool]" branding on outbound
+  communications should come off for anything client-facing — a cheap
+  professionalism signal that's easy to forget.
+  *Source: N8N Full Course 6 Hours (24:28–24:46)*
 
 ## Skills as reusable infrastructure
 
@@ -271,6 +472,12 @@ for detail instead of duplicating it here.
   like work, not entertainment.
   *Source: How I Plan, Build, and Run Loops with Claude Code (37:30–39:01)*
 
+- **Use the platform's own AI assistant as a first debugging pass.** Before
+  manual troubleshooting, check whether a built-in AI helper resolves the
+  issue — claimed to clear 30–40% of one builder's own questions. Cheap
+  triage step worth defaulting to.
+  *Source: N8N Full Course 6 Hours (11:15–11:28)*
+
 ---
 
 ## Sources
@@ -301,3 +508,19 @@ for detail instead of duplicating it here.
    Anthropic trimmed Claude Code's system prompt 80% as models got smarter —
    which directly complicates the "self-updating rule file" pattern from
    source 1 (see the tension note under Memory & self-improvement).
+
+4. **"N8N FULL COURSE 6 HOURS (Build & Sell AI Automations + Agents)"**
+   (YouTube, ~6h, https://www.youtube.com/watch?v=2GZ2SNXWK-c) — a
+   practitioner course on n8n (visual workflow-automation tool) covering
+   both building AI agent pipelines and selling them as client work. Most of
+   the runtime is n8n-specific UI/JS mechanics (skipped from this library);
+   the substantive chapters (agent nodes/memory/tools, JS-function
+   utilities, self-hosting vs. cloud, and an n8n-vs-Make comparison)
+   contributed real content in three new areas: concrete agent-orchestration
+   heuristics (the tool-count threshold is the most specific number in this
+   library so far), a new "tool selection for agent-building infra" category
+   (evaluating the tools we'd build *with*, not just agent behavior itself),
+   and a new "productizing & selling" category. Single practitioner's
+   opinionated take with real client-work examples, not benchmarked — treat
+   specific numbers (pricing, thresholds, ratios) as illustrative rather
+   than load-bearing.
