@@ -122,6 +122,9 @@ for detail instead of duplicating it here.
   a skill that self-analyzes the request and produces the four-section
   contract.
   *Source: AI Agents Full Course 2026 (1:22:27–1:27:16)*
+  **✅ Prototyped:** `.claude/skills/intake-contract/` — applied to client
+  intake specifically. Update this entry (and that skill) together if either
+  changes based on real use.
 
 - **Reverse prompting.** Before drafting the contract, have the agent ask
   ~5 dynamically generated clarifying questions to surface assumptions the
@@ -129,6 +132,7 @@ for detail instead of duplicating it here.
   constraints). Chain: reverse-prompt → prompt-contract → execute. Demoed to
   materially outperform a vague one-shot prompt.
   *Source: AI Agents Full Course 2026 (1:27:39–1:31:28)*
+  **✅ Prototyped:** built into `.claude/skills/intake-contract/` as Step 2.
 
 - **Planning is iterative, not a one-shot handoff.** Treat "spec" as something
   that evolves through rounds of explore → investigate → surface unknowns →
@@ -221,6 +225,10 @@ for detail instead of duplicating it here.
   agent call with a clean context window), and it's a general reliability
   multiplier, not task-specific.
   *Source: AI Agents Full Course 2026 (1:13:29–1:20:16)*
+  **✅ Prototyped:** `.claude/skills/verify-before-ship/` — pre-delivery
+  quality gate for client work, including the resolver step on blocking
+  findings. Update this entry (and that skill) together if either changes
+  based on real use.
 
 - **Stochastic multi-agent consensus.** Spawn N agents on the same task with
   varied framing, run in parallel, aggregate outputs into consensus /
